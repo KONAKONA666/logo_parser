@@ -22,6 +22,9 @@ import html2text
 
 import multiprocessing
 
+import argparse
+
+
 custom_settings = {
     'SCHEDULER_PRIORITY_QUEUE': 'scrapy.pqueues.DownloaderAwarePriorityQueue',
     'CONCURRENT_REQUESTS': 200,
@@ -110,8 +113,8 @@ class HTMLSpider(scrapy.Spider):
                 if src is None:
                     continue
                 if not src.startswith("http"):
-                    src = "http://{}".format(url) + src
-                curr_logos.append(src)
+                    src = url + src
+                curr_logos.append(src.replace('//', '/'))
         curr_svgs = []
         for svg in svgs:
             if check_logo(svg):
@@ -136,12 +139,15 @@ class HTMLSpider(scrapy.Spider):
 
 def start_spider(spider, urls, names, industries, n):
     process = multiprocessing.Process(target=crawler_func, args=(spider, urls, names, industries, n))
-    process.start()
     return process
 
 
 def main():
     ind = 0
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', type=int, default=1)
+    args = parser.parse_args()
+    i = args.n
     N = 500000
     start = time.time()
     df_clean = pd.read_csv('clean.csv')
@@ -151,21 +157,28 @@ def main():
     industries = list(df_clean['industry'])[:N]
 
     n_processes = 8
-    bs = len(df_clean) // n_processes
+    bs = len(domains) // n_processes
     batch_ind = [
         ((i-1)*bs, i*bs) for i in range(1, n_processes+1)
     ]
 
     start = time.time()
 
-    processes = [
-        start_spider(HTMLSpider, urls=domains[batch_ind[i][0]:batch_ind[i][1]], names=names[batch_ind[i][0]:batch_ind[i][1]], industries=industries[batch_ind[i][0]:batch_ind[i][1]], n=i)
-        for i in range(n_processes)
-    ]
+    
+    
 
-    #process = CrawlerProcess(custom_settings)
-    #process.crawl(HTMLSpider, urls=domains, names=names, industries=industries, n=1)
-    #process.start()
+    # processes = [
+    #     start_spider(HTMLSpider, urls=domains[batch_ind[i][0]:batch_ind[i][1]], names=names[batch_ind[i][0]:batch_ind[i][1]], industries=industries[batch_ind[i][0]:batch_ind[i][1]], n=i)
+    #     for i in range(n_processes)
+    # ]
+    # for process in processes:
+    #     process.start()
+    # for process in processes:
+    #     process.join()
+    print("PROCESS: {}, LEN: {}".format(i, len(domains[batch_ind[i][0]:batch_ind[i][1]])))
+    process = CrawlerProcess(custom_settings)
+    process.crawl(HTMLSpider, urls=domains[batch_ind[i][0]:batch_ind[i][1]], names=names[batch_ind[i][0]:batch_ind[i][1]], industries=industries[batch_ind[i][0]:batch_ind[i][1]], n=i)
+    process.start()
     print(time.time() - start)
 
 
